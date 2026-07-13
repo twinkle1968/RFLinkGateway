@@ -59,6 +59,8 @@ Whole configuration is located in config.json file. You can copy and edit `confi
   "mqtt_cert": "",
   "mqtt_key": "",
   "mqtt_replace_spaces": true,
+  "ha_discovery": true,
+  "ha_discovery_prefix": "homeassistant",
   "log_level": "DEBUG",
   "rflink_connection_type": "serial",
   "rflink_tty_device": "/dev/ttyUSB0",
@@ -101,6 +103,8 @@ config param  | meaning
  mqtt_key | path to client private key file for mutual TLS authentication (optional) |
  mqtt_reject_unauthorized | reject invalid or untrusted server certificates (`true` = strict validation, default: `false`) |
  mqtt_replace_spaces | replace spaces in MQTT topics with `_` (`true` to enable, default: `false`) |
+ ha_discovery | publish [Home Assistant MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery) configs for every device found (`true` / `false`, default: `false`) |
+ ha_discovery_prefix | discovery topic prefix Home Assistant listens on (default: `homeassistant`) |
  log_level | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, default: `DEBUG`) |
  rflink_connection_type | How to reach the RFLink Gateway: `serial` for a local TTY device (default), or `tcp` to connect to a [ser2net](https://github.com/cminyard/ser2net) service over the network |
  rflink_tty_device | Serial device (used when `rflink_connection_type` is `serial`) |
@@ -110,6 +114,44 @@ config param  | meaning
  rflink_signed_output_params | Parameters with signed values |
  rflink_wdir_output_params | Parameters with wind direction values |
  rflink_ignored_devices | List of RFLink device families or specific devices to ignore (e.g. `RTS` or `RTS/AX67`) |
+
+### Home Assistant MQTT Discovery
+
+When `ha_discovery` is enabled the gateway automatically announces every device
+it hears to Home Assistant, so entities appear without any manual YAML. The
+gateway tries to pick the correct entity type and metadata from the RFLink
+parameter, and grouping all parameters of one physical device under a single HA
+device.
+
+- Discovery configs are published **retained** to
+  `[ha_discovery_prefix]/[component]/rflink_[family]_[deviceId]/[param]/config`,
+  so Home Assistant picks them up again after a restart.
+- Each entity is announced only once per gateway run.
+- Devices listed in `rflink_ignored_devices` are filtered out before this stage,
+  so they are **not** announced.
+
+The RFLink parameter drives the entity type and metadata. A few examples:
+
+RFLink param | HA entity | device_class | unit | read/write
+------------ | --------- | ------------ | ---- | ----------
+ TEMP / WINCHL / WINTMP | sensor | temperature | °C | read
+ HUM | sensor | humidity | % | read
+ BARO | sensor | atmospheric_pressure | hPa | read
+ WINSP / AWINSP / WINGS | sensor | wind_speed | km/h | read
+ WINDIR | sensor | — | ° | read
+ RAIN | sensor | precipitation | mm | read
+ WATT / KWATT | sensor | power | W / kW | read
+ VOLT / CURRENT | sensor | voltage / current | V / A | read
+ LUX | sensor | illuminance | lx | read
+ CO2 | sensor | carbon_dioxide | ppm | read
+ BAT | binary_sensor | battery (on = `LOW`) | — | read
+ PIR | binary_sensor | motion | — | read
+ SMOKEALERT | binary_sensor | smoke | — | read
+ CMD | switch | — | — | **read + write** |
+
+Parameters that are not in the table are still announced as a plain sensor, so
+nothing is lost. Switches (`CMD`) get both a state topic (read) and a command
+topic (write), so they can be toggled directly from Home Assistant.
 
 ### Connecting over the network (ser2net)
 

@@ -1,6 +1,6 @@
 FROM python:3.8-slim
 
-LABEL version="1.0.0"
+LABEL version="1.2.0"
 
 # Keeps Python from generating .pyc files in the container
 ENV PYTHONDONTWRITEBYTECODE=1

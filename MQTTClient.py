@@ -1,9 +1,12 @@
+import json
 import logging
 import multiprocessing
 import time
 import ssl
 
 import paho.mqtt.client as mqtt
+
+import HADiscovery
 
 def is_number(s) -> bool:
     try:
@@ -33,6 +36,13 @@ class MQTTClient(multiprocessing.Process):
         self.connect_retry_counter = 0
         self.mqttDataPrefix = self.config['mqtt_prefix']
         self.mqttDataFormat = self.config['mqtt_format']
+
+        # Home Assistant MQTT discovery (opt-in). Ignored devices are filtered
+        # out in SerialProcess, so they never reach this stage and are therefore
+        # never announced to Home Assistant.
+        self.ha_discovery_enabled = self.config.get('ha_discovery', False)
+        self.ha_discovery = HADiscovery.HADiscovery(self.config) if self.ha_discovery_enabled else None
+        self._announced = set()
         self._mqttConn = mqtt.Client(client_id='RFLinkGateway')
         self._mqttConn.username_pw_set(self.config['mqtt_user'], self.config['mqtt_password'])
 
@@ -124,6 +134,24 @@ class MQTTClient(multiprocessing.Process):
             self.logger.error('Publish problem: %s' % (e))
             self.__messageQ.put(task)
 
+    def announce_discovery(self, task) -> None:
+        """Publish a retained Home Assistant discovery config for the device/param
+        of this task, once per entity."""
+        if not self.ha_discovery_enabled:
+            return
+        try:
+            key = self.ha_discovery.entity_key(task)
+            if key in self._announced:
+                return
+            config_topic, payload = self.ha_discovery.build(task)
+            result = self._mqttConn.publish(config_topic, payload=json.dumps(payload), qos=1, retain=True)
+            if result.rc != 0:
+                raise Exception("Send failed (rc=%s)" % result.rc)
+            self._announced.add(key)
+            self.logger.info('HA discovery published: %s' % (config_topic))
+        except Exception as e:
+            self.logger.error('HA discovery problem: %s' % (e))
+
     def run(self):
         while True:
             if self.client_connected == False:
@@ -131,10 +159,11 @@ class MQTTClient(multiprocessing.Process):
                 time.sleep (1+2*self.connect_retry_counter)
                 self.logger.error('Reconnecting, try:%s' % (self.connect_retry_counter+1))
                 self.connect(self.config)
-                self.connect_retry_counter += 1    
+                self.connect_retry_counter += 1
             if not self.__messageQ.empty():
                 task = self.__messageQ.get()
                 if task['method'] == 'publish':
+                    self.announce_discovery(task)
                     self.publish(task)
             else:
                 time.sleep(0.1)

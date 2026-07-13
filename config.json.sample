@@ -12,6 +12,8 @@
   "mqtt_cert": "",
   "mqtt_key": "",
   "mqtt_replace_spaces": true,
+  "ha_discovery": true,
+  "ha_discovery_prefix": "homeassistant",
   "log_level": "DEBUG",
   "rflink_connection_type": "serial",
   "rflink_tty_device": "/dev/ttyUSB0",
