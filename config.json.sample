@@ -13,7 +13,10 @@
   "mqtt_key": "",
   "mqtt_replace_spaces": true,
   "log_level": "DEBUG",
+  "rflink_connection_type": "serial",
   "rflink_tty_device": "/dev/ttyUSB0",
+  "rflink_tcp_host": "192.168.1.10",
+  "rflink_tcp_port": 5000,
   "rflink_direct_output_params": [
     "BAT",
     "CMD",

@@ -60,7 +60,10 @@ Whole configuration is located in config.json file. You can copy and edit `confi
   "mqtt_key": "",
   "mqtt_replace_spaces": true,
   "log_level": "DEBUG",
+  "rflink_connection_type": "serial",
   "rflink_tty_device": "/dev/ttyUSB0",
+  "rflink_tcp_host": "192.168.1.10",
+  "rflink_tcp_port": 5000,
   "rflink_direct_output_params": [
     "BAT",
     "CMD",
@@ -99,11 +102,43 @@ config param  | meaning
  mqtt_reject_unauthorized | reject invalid or untrusted server certificates (`true` = strict validation, default: `false`) |
  mqtt_replace_spaces | replace spaces in MQTT topics with `_` (`true` to enable, default: `false`) |
  log_level | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, default: `DEBUG`) |
- rflink_tty_device | Serial device |
+ rflink_connection_type | How to reach the RFLink Gateway: `serial` for a local TTY device (default), or `tcp` to connect to a [ser2net](https://github.com/cminyard/ser2net) service over the network |
+ rflink_tty_device | Serial device (used when `rflink_connection_type` is `serial`) |
+ rflink_tcp_host | Hostname or IP of the machine running ser2net (used when `rflink_connection_type` is `tcp`) |
+ rflink_tcp_port | TCP port exposed by ser2net for the RFLink serial port (used when `rflink_connection_type` is `tcp`) |
  rflink_direct_output_params | Parameters transferred to MQTT without any processing |
  rflink_signed_output_params | Parameters with signed values |
  rflink_wdir_output_params | Parameters with wind direction values |
  rflink_ignored_devices | List of RFLink device families or specific devices to ignore (e.g. `RTS` or `RTS/AX67`) |
+
+### Connecting over the network (ser2net)
+
+Instead of a locally attached USB/TTY device, the gateway can talk to an RFLink
+board that is plugged into another Linux machine and exposed with
+[ser2net](https://github.com/cminyard/ser2net). Set `rflink_connection_type` to
+`tcp` and provide `rflink_tcp_host` / `rflink_tcp_port`.
+
+Example `ser2net.yaml` on the machine with the RFLink board (raw mode, no telnet
+negotiation, which is what the gateway expects):
+
+```yaml
+connection: &rflink
+  accepter: tcp,5000
+  connector: serialdev,/dev/ttyUSB0,57600n81,local
+  options:
+    kickolduser: true
+```
+
+With this running, configure the gateway with:
+
+```json
+"rflink_connection_type": "tcp",
+"rflink_tcp_host": "192.168.1.10",
+"rflink_tcp_port": 5000
+```
+
+When running the gateway in Docker for a TCP connection you no longer need to pass
+`--device=/dev/ttyUSB0`, since the serial port lives on the remote machine.
 
 
 

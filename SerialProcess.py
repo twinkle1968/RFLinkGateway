@@ -15,7 +15,17 @@ class SerialProcess(multiprocessing.Process):
         self.__messageQ = messageQ
         self.__commandQ = commandQ
 
-        self.gatewayPort = config['rflink_tty_device']
+        # Connection can be either a local serial device ("serial", default)
+        # or a raw TCP socket to a ser2net service on another machine ("tcp").
+        self.connection_type = config.get('rflink_connection_type', 'serial').lower()
+        if self.connection_type == 'tcp':
+            host = config['rflink_tcp_host']
+            port = config['rflink_tcp_port']
+            # pyserial exposes ser2net/raw TCP streams through the socket:// URL handler,
+            # which mimics the regular Serial API (isOpen/inWaiting/flushInput/write/readline).
+            self.gatewayPort = 'socket://%s:%s' % (host, port)
+        else:
+            self.gatewayPort = config['rflink_tty_device']
         self.sp = serial.Serial()
         self.connect()
 
@@ -90,14 +100,17 @@ class SerialProcess(multiprocessing.Process):
         return out_str
 
     def connect(self) -> None:
-        self.logger.info('Connecting to serial')
+        self.logger.info('Connecting to %s (%s)' % (self.gatewayPort, self.connection_type))
         while not self.sp.isOpen():
             try:
                 time.sleep(1)
-                self.sp = serial.Serial(self.gatewayPort, 57600, timeout=1)
-                self.logger.debug('Serial connected')
+                if self.connection_type == 'tcp':
+                    self.sp = serial.serial_for_url(self.gatewayPort, baudrate=57600, timeout=1)
+                else:
+                    self.sp = serial.Serial(self.gatewayPort, 57600, timeout=1)
+                self.logger.debug('Connected to %s' % (self.gatewayPort))
             except Exception as e:
-                self.logger.error('Serial port is closed %s' % (e))
+                self.logger.error('Connection to %s failed: %s' % (self.gatewayPort, e))
 
     def run(self):
         self.sp.flushInput()
